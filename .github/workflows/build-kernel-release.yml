@@ -153,7 +153,7 @@ jobs:
         - Manual Syscall Hooks
         - Wireguard Support
         - BBR Support
-        - [baseband_guard.c](https://github.com/vc-teahouse/Baseband-guard/blob/main/baseband_guard.c) added
+        - [baseband_guard.c](https://github.com/vc-teahouse/Baseband-guard/blob/main/baseband_guard.c) added (**Do not restore your phone to factory defaults after installing this patch.**)
 
         Usage: 
           - Use [HorizonKernelFlasher](https://github.com/libxzr/HorizonKernelFlasher). Don't use Kernel Flasher, it is broken.
