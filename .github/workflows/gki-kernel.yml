@@ -221,7 +221,7 @@ jobs:
         run: |
           branch_input="${{ inputs.kernelsu_branch }}"
           variant_input="${{ inputs.kernelsu_variant }}"
-          
+
           case "$branch_input" in
             "Stable(标准)")
               echo "BRANCH=-s builtin" >> $GITHUB_ENV
@@ -231,7 +231,8 @@ jobs:
                 "Official" | "MKSU") echo "BRANCH=-s main" >> $GITHUB_ENV ;;
                 "Next")              echo "BRANCH=-s next-susfs-dev" >> $GITHUB_ENV ;;
                 "SukiSU")           echo "BRANCH=-s builtin" >> $GITHUB_ENV ;;
-                *) 
+                "ReSukiSU")         echo "BRANCH=" >> $GITHUB_ENV ;;
+                *)
                   echo "错误：未定义开发分支的变体 '$variant_input'" >&2
                   exit 1
                   ;;
@@ -260,6 +261,9 @@ jobs:
           elif [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
             echo "Adding KernelSU SukiSU..."
             curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash $BRANCH
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
+            echo "Adding KernelSU ReSukiSU..."
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           fi
 
       - name: 添加 Baseband-guard 支持
@@ -326,6 +330,10 @@ jobs:
             echo "Applying SUSFS patches for SukiSU..."
              cd ./KernelSU
             echo "Applying SukiSU specific SUSFS patch..."
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
+            echo "Applying SUSFS patches for ReSukiSU..."
+             cd ./KernelSU
+            echo "Applying ReSukiSU specific SUSFS patch..."
           else
             echo "Invalid KernelSU variant selected!"
             exit 1
@@ -389,7 +397,19 @@ jobs:
             patch -p1 -F 3 < scope_min_manual_hooks_v1.4.patch
           elif [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
             echo "Applying hooks for SukiSU..."
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
+            echo "Applying hooks for ReSukiSU..."
           fi
+
+      - name: 应用 TCP_NODELAY 性能补丁
+        run: |
+          echo "更改为配置目录: $CONFIG..."
+          cd "$CONFIG/common"
+
+          echo "下载并应用 TCP_NODELAY 补丁以减少网络延迟..."
+          curl -LSs "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/force_tcp_nodelay.patch" -o force_tcp_nodelay.patch
+          patch -p1 -F 3 < force_tcp_nodelay.patch || true
+          echo "TCP_NODELAY 补丁应用完成"
 
       - name: 复制源文件 & 应用LZ4KD & ZSTDN补丁
         if: ${{ inputs.use_zram }}
@@ -493,6 +513,9 @@ jobs:
             echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
           elif [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
+            echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
             echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
           elif [ "${{ inputs.kernelsu_variant }}" == "MKSU" ]; then
@@ -603,8 +626,8 @@ jobs:
             fi
             ccache --show-stats
             
-      - name: 修补 Image 文件 安卓12和安卓13(仅限sukisu)
-        if: ${{ inputs.use_kpm && inputs.kernelsu_variant == 'SukiSU' && (inputs.android_version == 'android12' || inputs.android_version == 'android13') }}
+      - name: 修补 Image 文件 安卓12和安卓13(仅限sukisu/resukisu)
+        if: ${{ inputs.use_kpm && (inputs.kernelsu_variant == 'SukiSU' || inputs.kernelsu_variant == 'ReSukiSU') && (inputs.android_version == 'android12' || inputs.android_version == 'android13') }}
         run: |
           if [ "${{ inputs.kernel_version }}" != "6.6" ]; then
             echo "Patching Image file..."
@@ -617,8 +640,8 @@ jobs:
             cd ../../../..
           fi
 
-      - name: 修补 Image 文件 安卓14和安卓15(仅限sukisu)
-        if: ${{ inputs.use_kpm && inputs.kernelsu_variant == 'SukiSU' && (inputs.android_version == 'android14' || inputs.android_version == 'android15') }}
+      - name: 修补 Image 文件 安卓14和安卓15(仅限sukisu/resukisu)
+        if: ${{ inputs.use_kpm && (inputs.kernelsu_variant == 'SukiSU' || inputs.kernelsu_variant == 'ReSukiSU') && (inputs.android_version == 'android14' || inputs.android_version == 'android15') }}
         run: |
           if [ "${{ inputs.kernel_version }}" != "6.6" ]; then
             echo "Patching Image file..."

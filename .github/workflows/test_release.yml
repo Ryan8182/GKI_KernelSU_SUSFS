@@ -29,11 +29,12 @@ on:
         required: true
         type: choice
         options:
+        - ReSukiSU
         - Official
         - Next
         - MKSU
         - SukiSU
-        default: SukiSU
+        default: ReSukiSU
       kernelsu_branch:
         description: "Select KSU branch"
         required: true

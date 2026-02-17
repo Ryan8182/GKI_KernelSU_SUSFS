@@ -17,6 +17,7 @@ Located in `.github/workflows/gki-kernel.yml` (lines 220-263):
 - **MKSU variant**: Uses `-s main` flag → Targets the `main` branch
 - **Next variant**: Uses `-s next-susfs-dev` flag → Targets KernelSU-Next repository
 - **SukiSU variant**: Uses `-s builtin` flag → Uses latest tag
+- **ReSukiSU variant** (DEFAULT): No branch flag → Uses latest ReSukiSU version
 
 ### Setup Command
 
@@ -54,12 +55,18 @@ This command:
 ## Current Feature Set
 
 ### Integrated Components
-1. **KernelSU**: Root solution for Android GKI devices (Official/MKSU/Next/SukiSU variants)
+1. **KernelSU**: Root solution for Android GKI devices (ReSukiSU/Official/MKSU/Next/SukiSU variants)
+   - **ReSukiSU** (Default): https://github.com/ReSukiSU/ReSukiSU
+   - Official: https://github.com/tiann/KernelSU
+   - Next: https://github.com/rifsxd/KernelSU-Next
+   - MKSU: https://github.com/5ec1cff/KernelSU
+   - SukiSU: https://github.com/SukiSU-Ultra/SukiSU-Ultra
 2. **SUSFS**: Addon root hiding kernel patches (v1.5.x+)
 3. **BBR**: TCP congestion control algorithm set as default
-4. **Wireguard**: VPN protocol support
-5. **LZ4KD**: ZRAM compression algorithm from HUAWEI source
-6. **Additional ZRAM algorithms**: LZ4K, LZ4HC, deflate, 842, lz4k_oplus
+4. **TCP_NODELAY**: Network latency optimization patch (forces applications to disable Nagle's algorithm)
+5. **Wireguard**: VPN protocol support
+6. **LZ4KD**: ZRAM compression algorithm from HUAWEI source
+7. **Additional ZRAM algorithms**: LZ4K, LZ4HC, deflate, 842, lz4k_oplus
 
 ### Configuration Options
 - **ZRAM Support**: Enabled by default with multiple compression algorithms
@@ -161,6 +168,14 @@ Dispatcher workflows:
 4. Keep track of upstream KernelSU changes
 
 ## Changelog
+
+### 2026-02-17
+- ✅ Added ReSukiSU as new KernelSU variant (https://github.com/ReSukiSU/ReSukiSU)
+- ✅ Set ReSukiSU as default variant across all workflow files
+- ✅ Integrated TCP_NODELAY network performance patch
+- ✅ Updated all build workflows (Android 12-15) to include ReSukiSU option
+- ✅ Configured ReSukiSU with KPM support like SukiSU
+- ✅ Extended Image patching to support ReSukiSU variant
 
 ### 2026-02-13
 - ✅ Verified configuration targets official KernelSU repository
