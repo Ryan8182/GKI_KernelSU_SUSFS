@@ -10,16 +10,14 @@ on:
         required: true
         type: boolean
         default: true
-      # Target KernelSU by default (tiann/KernelSU). Keep variant configurable.
       kernelsu_variant:
         required: true
         type: string
-        default: KernelSU
-      # Default to KernelSU dev branch
+        default: ReSukiSU
       kernelsu_branch:
         required: true
         type: string
-        default: dev
+        default: Stable
       # kernelsu_branch_other:
       #   required: false
       #   type: string
@@ -101,26 +99,11 @@ jobs:
       sub_level: ${{ matrix.sub_level }}
       os_patch_level: ${{ matrix.os_patch_level }}
       revision: ${{ matrix.revision }}
-      # Default to KernelSU (tiann/KernelSU) and dev branch; can be overridden by caller.
-      kernelsu_variant: ${{ inputs.kernelsu_variant || 'KernelSU' }}
-      kernelsu_branch: ${{ inputs.kernelsu_branch || 'dev' }}
+      kernelsu_variant: ${{ inputs.kernelsu_variant || 'Next' }}
+      kernelsu_branch: ${{ inputs.kernelsu_branch || 'Dev' }}
       # kernelsu_branch_other: ${{ inputs.kernelsu_branch_other || '' }}
       version: ${{ inputs.version || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_kpm: ${{ inputs.use_kpm }}
       supp_op: ${{ inputs.supp_op || false }}
       BBG: ${{ inputs.BBG || false }}
-
-# Notes / reminder (comments only):
-# - To invoke KernelSU installer script from tiann/KernelSU dev branch you can use:
-#     curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/dev/kernel/setup.sh" | bash -s dev
-#   (the workflow above only sets the variables; the actual installer invocation should be handled in the reusable gki-kernel.yml steps.)
-# - If the gki-kernel.yml currently expects different branch names/values (e.g., "Main" vs "main" vs "dev"), ensure it accepts 'dev' or adapt it there.
-# - Upstream changes to KernelSU may introduce new patches or change patch locations/names:
-#   * setup.sh path or parameters might change (branch names, subpaths) — watch the raw URL and update if the script moves.
-#   * KernelSU may add/remove patches, or reorder patch application — test builds after syncing to dev.
-#   * New KSU features might require updated kernel config options or dependencies (extra Kconfig flags).
-# - Performance/feature optimizations:
-#   * Check whether KernelSU dev requires additional build flags for zram/KPM compatibility.
-#   * If KernelSU adds post-build steps (packaging, signing), ensure the reusable workflow supports them.
-# - Recommended workflow: pin installer script by commit SHA when possible, or add a CI step to sanity-check the installer before applying patches.
