@@ -219,62 +219,51 @@ jobs:
       
       - name: 确定 KernelSU 的分支
         run: |
-          # Normalize kernelsu_branch input and derive INSTALL_REF and BRANCH_ARG
           branch_input="${{ inputs.kernelsu_branch }}"
-          # Provide mappings for localized names and common aliases
-          case "${branch_input}" in
-            "Stable(标准)"|"stable"|"main"|"builtin")
-              INSTALL_REF="main"
-              BRANCH_ARG="-s main"
+          variant_input="${{ inputs.kernelsu_variant }}"
+
+          case "$branch_input" in
+            "Stable(标准)")
+              echo "BRANCH=-s builtin" >> $GITHUB_ENV
               ;;
-            "Dev(开发)"|"dev")
-              INSTALL_REF="dev"
-              BRANCH_ARG="-s dev"
+            "Dev(开发)")
+              case "$variant_input" in
+                "Official" | "MKSU") echo "BRANCH=-s main" >> $GITHUB_ENV ;;
+                "Next")              echo "BRANCH=-s next-susfs-dev" >> $GITHUB_ENV ;;
+                "SukiSU")           echo "BRANCH=-s builtin" >> $GITHUB_ENV ;;
+                "ReSukiSU")         echo "BRANCH=" >> $GITHUB_ENV ;;
+                *)
+                  echo "错误：未定义开发分支的变体 '$variant_input'" >&2
+                  exit 1
+                  ;;
+              esac
               ;;
-            # support next-susfs-dev alias if used
-            "next-susfs-dev")
-              INSTALL_REF="main"
-              BRANCH_ARG="-s next-susfs-dev"
-              ;;
-            # If caller provided a plain branch name or commit, use it directly
             *)
-              INSTALL_REF="${branch_input}"
-              BRANCH_ARG="-s ${branch_input}"
+              echo "错误：需要自定义分支时未提供参数" >&2
+              exit 1
               ;;
           esac
-
-          echo "INSTALL_REF=$INSTALL_REF" >> $GITHUB_ENV
-          echo "BRANCH=$BRANCH_ARG" >> $GITHUB_ENV
-          echo "Selected KernelSU install reference: $INSTALL_REF"
 
       - name: 添加 KernelSU
         run: |
           echo "更改为配置目录: $CONFIG..."
           cd "$CONFIG"
 
-          variant="${{ inputs.kernelsu_variant }}"
-          # allow 'KernelSU' as synonym for Official
-          if [ "$variant" = "KernelSU" ]; then
-            variant="Official"
-          fi
-
-          if [ "$variant" = "Official" ]; then
-            echo "Adding KernelSU Official from tiann/KernelSU (ref: $INSTALL_REF)..."
-            # Prefer fetching setup.sh from the requested ref (branch/commit/tag)
-            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/${INSTALL_REF}/kernel/setup.sh" | bash -s "$INSTALL_REF"
-          elif [ "$variant" = "Next" ]; then
+          if [ "${{ inputs.kernelsu_variant }}" == "Official" ]; then
+            echo "Adding KernelSU Official..."
+            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash $BRANCH
+          elif [ "${{ inputs.kernelsu_variant }}" == "Next" ]; then
             echo "Adding KernelSU Next..."
-            # KernelSU-Next has its own repo/branch layout; leave as-is
             curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next-susfs/kernel/setup.sh" | bash $BRANCH
-          elif [ "$variant" = "MKSU" ]; then
+          elif [ "${{ inputs.kernelsu_variant }}" == "MKSU" ]; then
             echo "Adding KernelSU MKSU..."
             curl -LSs "https://raw.githubusercontent.com/5ec1cff/KernelSU/main/kernel/setup.sh" | bash $BRANCH
-          elif [ "$variant" = "SukiSU" ]; then
+          elif [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
             echo "Adding KernelSU SukiSU..."
             curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash $BRANCH
-          else
-            echo "Unknown KernelSU variant: $variant" >&2
-            exit 1
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
+            echo "Adding KernelSU ReSukiSU..."
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           fi
 
       - name: 添加 Baseband-guard 支持
@@ -341,6 +330,10 @@ jobs:
             echo "Applying SUSFS patches for SukiSU..."
              cd ./KernelSU
             echo "Applying SukiSU specific SUSFS patch..."
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
+            echo "Applying SUSFS patches for ReSukiSU..."
+             cd ./KernelSU
+            echo "Applying ReSukiSU specific SUSFS patch..."
           else
             echo "Invalid KernelSU variant selected!"
             exit 1
@@ -392,10 +385,10 @@ jobs:
               fi
             fi
           fi
-
+  
       - name: 应用新的HOOKS补丁
         run: |
-          echo "更改为配���目录: $CONFIG..."
+          echo "更改为配置目录: $CONFIG..."
           cd "$CONFIG/common"
 
           if [ "${{ inputs.kernelsu_variant }}" == "Next" ]; then
@@ -404,7 +397,19 @@ jobs:
             patch -p1 -F 3 < scope_min_manual_hooks_v1.4.patch
           elif [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
             echo "Applying hooks for SukiSU..."
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
+            echo "Applying hooks for ReSukiSU..."
           fi
+
+      - name: 应用 TCP_NODELAY 性能补丁
+        run: |
+          echo "更改为配置目录: $CONFIG..."
+          cd "$CONFIG/common"
+
+          echo "下载并应用 TCP_NODELAY 补丁以减少网络延迟..."
+          curl -LSs "https://raw.githubusercontent.com/WildKernels/kernel_patches/main/common/force_tcp_nodelay.patch" -o force_tcp_nodelay.patch
+          patch -p1 -F 3 < force_tcp_nodelay.patch || true
+          echo "TCP_NODELAY 补丁应用完成"
 
       - name: 复制源文件 & 应用LZ4KD & ZSTDN补丁
         if: ${{ inputs.use_zram }}
@@ -489,7 +494,7 @@ jobs:
           fi
 
       - name: 设置BBR为默认拥塞算法
-        if: ${{ inputs.set_defbbr }}
+       
         run: |
           CONFIG_FILE="$CONFIG/common/arch/arm64/configs/gki_defconfig"
           echo "Changing to configuration directory: $CONFIG_FILE..."
@@ -508,6 +513,9 @@ jobs:
             echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
           elif [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
+            echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
+          elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
             echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
           elif [ "${{ inputs.kernelsu_variant }}" == "MKSU" ]; then
@@ -618,8 +626,8 @@ jobs:
             fi
             ccache --show-stats
             
-      - name: 修补 Image 文件 安卓12和安卓13(仅限sukisu)
-        if: ${{ inputs.use_kpm && inputs.kernelsu_variant == 'SukiSU' && (inputs.android_version == 'android12' || inputs.android_version == 'android13') }}
+      - name: 修补 Image 文件 安卓12和安卓13(仅限sukisu/resukisu)
+        if: ${{ inputs.use_kpm && (inputs.kernelsu_variant == 'SukiSU' || inputs.kernelsu_variant == 'ReSukiSU') && (inputs.android_version == 'android12' || inputs.android_version == 'android13') }}
         run: |
           if [ "${{ inputs.kernel_version }}" != "6.6" ]; then
             echo "Patching Image file..."
@@ -632,8 +640,8 @@ jobs:
             cd ../../../..
           fi
 
-      - name: 修补 Image 文件 安卓14和安卓15(仅限sukisu)
-        if: ${{ inputs.use_kpm && inputs.kernelsu_variant == 'SukiSU' && (inputs.android_version == 'android14' || inputs.android_version == 'android15') }}
+      - name: 修补 Image 文件 安卓14和安卓15(仅限sukisu/resukisu)
+        if: ${{ inputs.use_kpm && (inputs.kernelsu_variant == 'SukiSU' || inputs.kernelsu_variant == 'ReSukiSU') && (inputs.android_version == 'android14' || inputs.android_version == 'android15') }}
         run: |
           if [ "${{ inputs.kernel_version }}" != "6.6" ]; then
             echo "Patching Image file..."
@@ -664,7 +672,7 @@ jobs:
       - name: 创建Bootimgs文件夹并复制镜像
         if: ${{ inputs.android_version == 'android14' || inputs.android_version == 'android15' }}
         run: |
-          echo "更改为��置目录: $CONFIG..."
+          echo "更改为配置目录: $CONFIG..."
           mkdir bootimgs
 
           echo "Creating bootimgs folder and copying images..."
@@ -688,17 +696,17 @@ jobs:
           zip -r "../$ZIP_NAME" ./*
           rm ./Image
 
-          ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-lz4.zip"
-          echo "Creating zip file: $ZIP_NAME..."
-          mv ../Image.lz4 ./Image.lz4
-          zip -r "../$ZIP_NAME" ./*
-          rm ./Image.lz4
+       #   ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-lz4.zip"
+        #  echo "Creating zip file: $ZIP_NAME..."
+        #  mv ../Image.lz4 ./Image.lz4
+        #  zip -r "../$ZIP_NAME" ./*
+        #  rm ./Image.lz4
 
-          ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-gz.zip"
-          echo "Creating zip file: $ZIP_NAME..."
-          mv ../Image.gz ./Image.gz
-          zip -r "../$ZIP_NAME" ./*
-          rm ./Image.gz
+        #  ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-gz.zip"
+        #  echo "Creating zip file: $ZIP_NAME..."
+        #  mv ../Image.gz ./Image.gz
+        #  zip -r "../$ZIP_NAME" ./*
+        #  rm ./Image.gz
 
       - name: 运行boot镜像 ${{ inputs.android_version }} 编译脚本
         if: ${{ inputs.android_version == 'android12' }}
@@ -740,15 +748,15 @@ jobs:
           $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
           cp ./boot.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot.img
 
-          echo "Building boot-gz.img"
-          $MKBOOTIMG --header_version 4 --kernel Image.gz --output boot-gz.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${{ inputs.os_patch_level }}"
-          $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
-          cp ./boot-gz.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-gz.img
+  #        echo "Building boot-gz.img"
+  #        $MKBOOTIMG --header_version 4 --kernel Image.gz --output boot-gz.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${{ inputs.os_patch_level }}"
+  #        $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
+  #       cp ./boot-gz.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-gz.img
 
-          echo "Building boot-lz4.img"
-          $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${{ inputs.os_patch_level }}"
-          $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
-          cp ./boot-lz4.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-lz4.img
+   #       echo "Building boot-lz4.img"
+    #      $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${{ inputs.os_patch_level }}"
+     #     $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
+      #    cp ./boot-lz4.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-lz4.img
 
       - name: 运行boot镜像 ${{ inputs.android_version }} 编译脚本
         if: ${{ inputs.android_version == 'android13' || inputs.android_version == 'android14' || inputs.android_version == 'android15' }}
@@ -763,15 +771,15 @@ jobs:
           $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
           cp ./boot.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot.img
 
-          echo "Building boot-gz.img"
-          $MKBOOTIMG --header_version 4 --kernel Image.gz --output boot-gz.img
-          $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
-          cp ./boot-gz.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-gz.img
+       #   echo "Building boot-gz.img"
+       #   $MKBOOTIMG --header_version 4 --kernel Image.gz --output boot-gz.img
+       #   $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
+       #   cp ./boot-gz.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-gz.img
 
-          echo "Building boot-lz4.img"
-          $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img
-          $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
-          cp ./boot-lz4.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-lz4.img
+      #    echo "Building boot-lz4.img"
+      #    $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img
+      #    $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
+      #    cp ./boot-lz4.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-lz4.img
 
       - name: 上传编译资产
         uses: actions/upload-artifact@v4
