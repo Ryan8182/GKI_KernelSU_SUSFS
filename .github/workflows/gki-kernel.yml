@@ -330,11 +330,21 @@ jobs:
             echo "Applying SUSFS patches for SukiSU..."
              cd ./KernelSU
             echo "Applying SukiSU specific SUSFS patch..."
-            # Fix: SukiSU-Ultra uses KSU_IOCTL(CMD,...) macro which prepends KSU_IOCTL_##CMD.
+            # Fix 1: SukiSU-Ultra uses KSU_IOCTL(CMD,...) macro which prepends KSU_IOCTL_##CMD.
             # The Feb 26 'rcu allowlist' commit incorrectly passed the full constant name
             # as the CMD arg, causing KSU_IOCTL_KSU_IOCTL_NEW_GET_* double-prefix errors.
             sed -i 's/KSU_IOCTL(KSU_IOCTL_NEW_GET_ALLOW_LIST,/KSU_IOCTL(NEW_GET_ALLOW_LIST,/g' kernel/supercalls.c || true
             sed -i 's/KSU_IOCTL(KSU_IOCTL_NEW_GET_DENY_LIST,/KSU_IOCTL(NEW_GET_DENY_LIST,/g' kernel/supercalls.c || true
+            # Fix 2: The builtin tag's supercalls.c was updated to use KSU_IOCTL(GET_ALLOW_LIST,...)
+            # and KSU_IOCTL(GET_DENY_LIST,...) which expand to KSU_IOCTL_GET_ALLOW_LIST /
+            # KSU_IOCTL_GET_DENY_LIST, but supercalls.h in that tag does not define these constants.
+            # Inject the missing #defines if absent (values match current SukiSU-Ultra main branch).
+            if ! grep -q "^#define KSU_IOCTL_GET_ALLOW_LIST " kernel/supercalls.h 2>/dev/null; then
+              sed -i "/#define KSU_IOCTL_NEW_GET_ALLOW_LIST/a #define KSU_IOCTL_GET_ALLOW_LIST  _IOC(_IOC_READ | _IOC_WRITE, 'K', 6, 0)" kernel/supercalls.h || true
+            fi
+            if ! grep -q "^#define KSU_IOCTL_GET_DENY_LIST " kernel/supercalls.h 2>/dev/null; then
+              sed -i "/#define KSU_IOCTL_NEW_GET_DENY_LIST/a #define KSU_IOCTL_GET_DENY_LIST   _IOC(_IOC_READ | _IOC_WRITE, 'K', 7, 0)" kernel/supercalls.h || true
+            fi
           elif [ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]; then
             echo "Applying SUSFS patches for ReSukiSU..."
              cd ./KernelSU
