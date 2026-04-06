@@ -53,6 +53,10 @@ on:
         required: true
         type: boolean
         default: false
+      use_lz4:
+        required: false
+        type: boolean
+        default: false
 jobs:
   build-kernel-kernelsu-susfs:
     runs-on: ubuntu-latest
@@ -201,6 +205,20 @@ jobs:
             cd ./common
             curl -LSs https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/legacy/fix_5.15.legacy -o fix_5.15.legacy.patch
             patch -p1 < fix_5.15.legacy.patch
+          fi
+
+      - name: 叠加 Pixel 7a (lynx) 设备配置
+        if: ${{ inputs.android_version == 'android14' && inputs.kernel_version == '6.1' }}
+        run: |
+          echo "Cloning Pixel 7a (lynx) device kernel for defconfig overlay..."
+          git clone https://android.googlesource.com/kernel/devices/google/lynx/ --depth=1 lynx-device
+          CONFIG_FILE="$CONFIG/common/arch/arm64/configs/gki_defconfig"
+          if [ -f "lynx-device/arch/arm64/configs/lynx_defconfig" ]; then
+            echo "Applying lynx_defconfig fragment..."
+            cat lynx-device/arch/arm64/configs/lynx_defconfig >> "$CONFIG_FILE"
+          else
+            echo "lynx_defconfig not found at expected path, listing available configs:"
+            find lynx-device -name "*defconfig*" 2>/dev/null || true
           fi
 
       - name: 使GKI在一加8E平台正常使用
@@ -713,11 +731,13 @@ jobs:
           zip -r "../$ZIP_NAME" ./*
           rm ./Image
 
-       #   ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-lz4.zip"
-        #  echo "Creating zip file: $ZIP_NAME..."
-        #  mv ../Image.lz4 ./Image.lz4
-        #  zip -r "../$ZIP_NAME" ./*
-        #  rm ./Image.lz4
+          if [ "${{ inputs.use_lz4 }}" = "true" ]; then
+            ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-lz4.zip"
+            echo "Creating lz4 zip file: $ZIP_NAME..."
+            mv ../Image.lz4 ./Image.lz4
+            zip -r "../$ZIP_NAME" ./*
+            rm ./Image.lz4
+          fi
 
         #  ZIP_NAME="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-AnyKernel3-gz.zip"
         #  echo "Creating zip file: $ZIP_NAME..."
@@ -793,10 +813,31 @@ jobs:
        #   $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
        #   cp ./boot-gz.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-gz.img
 
-      #    echo "Building boot-lz4.img"
-      #    $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img
-      #    $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
-      #    cp ./boot-lz4.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-lz4.img
+          if [ "${{ inputs.use_lz4 }}" = "true" ]; then
+            echo "Building boot-lz4.img (LZ4 legacy, header v4)"
+            $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img
+            $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
+            cp ./boot-lz4.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot-lz4.img
+          fi
+
+          if [ "${{ inputs.android_version }}" = "android14" ] || [ "${{ inputs.android_version }}" = "android15" ]; then
+            echo "Building init_boot.img (Android 14+ separate ramdisk partition for Pixel 7a)"
+            INIT_BOOT_URL="https://dl.google.com/android/gki/gki-certified-boot-android14-6.1-${{ inputs.os_patch_level }}_r1.zip"
+            status=$(curl -sL -w "%{http_code}" "$INIT_BOOT_URL" -o /dev/null)
+            if [ "$status" = "200" ]; then
+              curl -Lo gki-init-boot.zip "$INIT_BOOT_URL"
+              unzip -o gki-init-boot.zip 'init_boot*.img' 2>/dev/null || true
+              if ls init_boot*.img 1>/dev/null 2>&1; then
+                cp init_boot*.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-init_boot.img
+              fi
+            else
+              echo "GKI init_boot not available for ${{ inputs.os_patch_level }}, building minimal init_boot.img"
+              printf '' | gzip > ramdisk.cpio.gz
+              $MKBOOTIMG --header_version 4 --ramdisk ramdisk.cpio.gz --output init_boot.img
+              $AVBTOOL add_hash_footer --partition_name init_boot --partition_size $((32 * 1024 * 1024)) --image init_boot.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
+              cp ./init_boot.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-init_boot.img
+            fi
+          fi
 
       - name: 上传编译资产
         uses: actions/upload-artifact@v4

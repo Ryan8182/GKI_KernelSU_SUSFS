@@ -13,7 +13,7 @@ on:
       kernelsu_variant:
         required: true
         type: string
-        default: Next
+        default: ReSukiSU
       kernelsu_branch:
         required: true
         type: string
@@ -31,10 +31,10 @@ on:
         description: '是否开启KPM功能?'
         required: true
         type: boolean
-        default: true
+        default: false
       BBG:
         description: '是否启用内核层面阻止对关键分区/设备节点的非法写入(LSM)？'
-        required: true
+        required: false
         type: boolean
         default: false
 
@@ -54,24 +54,24 @@ jobs:
           #  os_patch_level: "2024-03"
           #- sub_level: "75"
           #  os_patch_level: "2024-05"
-          - sub_level: "78"
-            os_patch_level: "2024-06"
+          #- sub_level: "78"
+          #  os_patch_level: "2024-06"
           #- sub_level: "84"
           #  os_patch_level: "2024-07"
-          - sub_level: "90"
-            os_patch_level: "2024-08"
+          #- sub_level: "90"
+          #  os_patch_level: "2024-08"
           #- sub_level: "93"
           #  os_patch_level: "2024-09"
-          - sub_level: "99"
-            os_patch_level: "2024-10"
+          #- sub_level: "99"
+          #  os_patch_level: "2024-10"
           #- sub_level: "112"
           #  os_patch_level: "2024-11"
           #- sub_level: "115"
           #  os_patch_level: "2024-12"
           #- sub_level: "118"
           #  os_patch_level: "2025-01"
-          - sub_level: "124"
-            os_patch_level: "2025-02"
+          #- sub_level: "124"
+          #  os_patch_level: "2025-02"
           #- sub_level: "128"
           #  os_patch_level: "2025-03"
           #- sub_level: "129"
@@ -80,8 +80,8 @@ jobs:
           #  os_patch_level: "2025-05"
           - sub_level: "145"
             os_patch_level: "2025-09"
-          #- sub_level: "X"
-          #  os_patch_level: "lts"
+          - sub_level: "X"
+            os_patch_level: "lts"
     uses: ./.github/workflows/gki-kernel.yml
     secrets: inherit
     with:
@@ -90,10 +90,11 @@ jobs:
       kernel_version: "6.1"
       sub_level: ${{ matrix.sub_level }}
       os_patch_level: ${{ matrix.os_patch_level }}
-      kernelsu_variant: ${{ inputs.kernelsu_variant || 'Next' }}
+      kernelsu_variant: ${{ inputs.kernelsu_variant || 'ReSukiSU' }}
       kernelsu_branch: ${{ inputs.kernelsu_branch || 'Dev' }}
       version: ${{ inputs.version || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_kpm: ${{ inputs.use_kpm }}
+      use_lz4: true
       supp_op: ${{ inputs.supp_op || false }}
-      BBG: ${{ inputs.BBG || false }}
+      BBG: false
