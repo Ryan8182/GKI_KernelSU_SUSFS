@@ -3,7 +3,7 @@ name: 编译内核a14-6-1
 permissions:
   contents: write  # Allow writing to repository contents (for pushing tags)
   actions: write   # Allows triggering actions
-  
+
 on:
   workflow_dispatch:
     inputs:
@@ -12,11 +12,12 @@ on:
         required: true
         type: choice
         options:
+          - ReSukiSU
           - Official
           - Next
           - MKSU
           - SukiSU
-        default: SukiSU
+        default: ReSukiSU
       kernelsu_branch:
         description: "选择 ksu 分支"
         required: true
@@ -27,19 +28,14 @@ on:
           - Other(其他/指定)
         default: Dev(开发)
       version:
-        description: '自定义版本名(如6.1.93后面的字符/留空则使用默认版本号)'
+        description: '自定义版本名(如6.1.145后面的字符/留空则使用默认版本号)'
         required: false
         type: string
-      use_zram:
-        description: '是否开启增加更多ZRAM算法?'
-        required: true
-        type: boolean
-        default: true
       use_kpm:
         description: '是否开启KPM功能?'
         required: true
         type: boolean
-        default: true
+        default: false
       get_manager:
         description: '是否同时获取最新KSU管理器?（实验性功能，报错请关闭）'
         required: true
@@ -55,7 +51,7 @@ jobs:
       kernelsu_variant: ${{ inputs.kernelsu_variant }}
       kernelsu_branch: ${{ inputs.kernelsu_branch }}
       version: ${{ inputs.version }}
-      use_zram: ${{ inputs.use_zram }}
+      use_zram: true
       use_kpm: ${{ inputs.use_kpm }}
   get-ksu-manager:
     if: ${{ inputs.get_manager }}
@@ -63,4 +59,3 @@ jobs:
     secrets: inherit
     with:
       kernelsu_variant: ${{ inputs.kernelsu_variant }}
-
