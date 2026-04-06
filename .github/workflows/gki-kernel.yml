@@ -207,20 +207,6 @@ jobs:
             patch -p1 < fix_5.15.legacy.patch
           fi
 
-      - name: 叠加 Pixel 7a (lynx) 设备配置
-        if: ${{ inputs.android_version == 'android14' && inputs.kernel_version == '6.1' }}
-        run: |
-          echo "Cloning Pixel 7a (lynx) device kernel for defconfig overlay..."
-          git clone https://android.googlesource.com/kernel/devices/google/lynx/ --depth=1 lynx-device
-          CONFIG_FILE="$CONFIG/common/arch/arm64/configs/gki_defconfig"
-          if [ -f "lynx-device/arch/arm64/configs/lynx_defconfig" ]; then
-            echo "Applying lynx_defconfig fragment..."
-            cat lynx-device/arch/arm64/configs/lynx_defconfig >> "$CONFIG_FILE"
-          else
-            echo "lynx_defconfig not found at expected path, listing available configs:"
-            find lynx-device -name "*defconfig*" 2>/dev/null || true
-          fi
-
       - name: 使GKI在一加8E平台正常使用
         if: ${{ inputs.supp_op }}
         run: |
@@ -657,7 +643,7 @@ jobs:
             if [ -f "build/build.sh" ]; then
               LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || exit 1
             else
-              tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast --lto=thin //common:kernel_aarch64_dist || exit 1
+              tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast --lto=thin --verbose_failures //common:kernel_aarch64_dist || exit 1
             fi
             ccache --show-stats
             
